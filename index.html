@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bahrain to the Moon — A Family Space Coding Adventure</title>
+  <meta name="description" content="Explore the Moon. Solve Challenges. Learn to Code." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌙</text></svg>" />
+</head>
+<body>
+  <!-- The 3D world renders here (also used as the background of every menu) -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Fade overlay for cinematic transitions -->
+  <div id="fade" class="fade"></div>
+
+  <!-- Loading -->
+  <div id="loading" class="screen screen--center">
+    <div class="loader-moon"></div>
+    <p class="loading-text">Preparing the lunar base…</p>
+  </div>
+
+  <!-- Screen 1: Splash -->
+  <section id="screen-splash" class="screen hidden">
+    <div class="splash">
+      <div class="splash__badge">NASA Space Apps Challenge 2026</div>
+      <h1 class="splash__title">
+        <span class="splash__line1">Bahrain</span>
+        <span class="splash__line2">to the <span class="splash__moon">Moon</span></span>
+      </h1>
+      <p class="splash__subtitle">A Family Space Coding Adventure</p>
+      <p class="splash__tagline">Explore the Moon. Solve Challenges. Learn to Code.</p>
+      <button id="btn-start" class="btn btn--primary btn--xl">🚀 Start Adventure</button>
+      <button id="btn-howto" class="btn btn--ghost">How to Play</button>
+    </div>
+  </section>
+
+  <!-- Screen 2: Character selection -->
+  <section id="screen-select" class="screen hidden">
+    <header class="screen-header">
+      <h2>Choose Your Astronaut</h2>
+      <p>Every family member can complete every mission — each one brings their own expertise!</p>
+    </header>
+    <div id="character-cards" class="character-cards"></div>
+    <div class="screen-footer">
+      <button id="btn-select-back" class="btn btn--ghost">← Back</button>
+      <button id="btn-select-next" class="btn btn--primary btn--lg">Continue →</button>
+    </div>
+  </section>
+
+  <!-- Screen 3: Spacesuit customization -->
+  <section id="screen-custom" class="screen hidden">
+    <div class="custom-panel card">
+      <h2>Customize Your Spacesuit</h2>
+      <p class="muted">Your suit always carries the Bahrain flag patch 🇧🇭</p>
+      <div class="custom-group">
+        <h3>Suit Accent</h3>
+        <div id="swatch-accent" class="swatches"></div>
+      </div>
+      <div class="custom-group">
+        <h3>Helmet Visor</h3>
+        <div id="swatch-visor" class="swatches"></div>
+      </div>
+      <div class="custom-group">
+        <h3>Helmet Lamp</h3>
+        <div class="toggle-row">
+          <button id="btn-lamp-on" class="chip chip--active">💡 On</button>
+          <button id="btn-lamp-off" class="chip">Off</button>
+        </div>
+      </div>
+      <div class="custom-actions">
+        <button id="btn-custom-back" class="btn btn--ghost">← Back</button>
+        <button id="btn-launch" class="btn btn--primary btn--lg">🚀 Launch to the Moon!</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screen 4: Lunar arrival captions -->
+  <section id="screen-intro" class="screen hidden">
+    <div id="intro-caption" class="intro-caption"></div>
+    <button id="btn-skip-intro" class="btn btn--ghost btn--sm skip-btn">Skip ⏭</button>
+  </section>
+
+  <!-- Screen 5: In-game HUD -->
+  <section id="hud" class="hidden">
+    <div id="resources" class="resources"></div>
+
+    <div id="objective" class="objective card">
+      <div class="objective__tag" id="objective-tag">Mission 01</div>
+      <div class="objective__title" id="objective-title">Power Crisis</div>
+      <div class="objective__text" id="objective-text">Go to the Solar Station</div>
+      <div class="objective__nav">
+        <div id="compass" class="compass"><div class="compass__arrow">➤</div></div>
+        <span id="objective-distance">--</span>
+      </div>
+    </div>
+
+    <div id="alert-banner" class="alert-banner hidden"></div>
+    <div id="prompt" class="prompt hidden"><kbd>E</kbd><span id="prompt-text">Interact</span></div>
+
+    <div id="dialogue" class="dialogue hidden">
+      <div id="dialogue-avatar" class="dialogue__avatar">A</div>
+      <div class="dialogue__body">
+        <div id="dialogue-name" class="dialogue__name">Amal</div>
+        <div id="dialogue-text" class="dialogue__text"></div>
+      </div>
+    </div>
+
+    <div class="hud-buttons">
+      <button id="btn-sound" class="icon-btn" title="Sound on/off">🔊</button>
+      <button id="btn-info" class="icon-btn" title="Moon science">🔭</button>
+      <button id="btn-pause" class="icon-btn" title="Pause (Esc)">⏸</button>
+    </div>
+
+    <div id="controls-hint" class="controls-hint">
+      <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
+      <span>🖱️ Drag to look</span>
+      <span><kbd>E</kbd> Interact</span>
+      <span><kbd>Space</kbd> Moon jump</span>
+      <span><kbd>Esc</kbd> Pause</span>
+    </div>
+  </section>
+
+  <!-- Coding challenge modal (filled by CodingBlocks.js) -->
+  <section id="coding-modal" class="modal hidden" aria-modal="true" role="dialog"></section>
+
+  <!-- Screen 6: Mission success -->
+  <section id="success-screen" class="modal hidden"></section>
+
+  <!-- Screen 7: Final completion -->
+  <section id="final-screen" class="modal hidden"></section>
+
+  <!-- Pause menu -->
+  <section id="pause-menu" class="modal hidden">
+    <div class="card pause-card">
+      <h2>⏸ Paused</h2>
+      <button id="btn-resume" class="btn btn--primary btn--lg">▶ Resume</button>
+      <button id="btn-restart-mission" class="btn btn--secondary">🔄 Restart Mission</button>
+      <button id="btn-pause-howto" class="btn btn--secondary">❓ How to Play</button>
+      <button id="btn-pause-info" class="btn btn--secondary">🔭 Moon Science</button>
+      <button id="btn-main-menu" class="btn btn--ghost">🏠 Main Menu</button>
+    </div>
+  </section>
+
+  <!-- How to play -->
+  <section id="howto" class="modal hidden">
+    <div class="card howto-card">
+      <h2>How to Play</h2>
+      <div class="howto-grid">
+        <div><span class="howto-icon">🕹️</span><b>Move</b><p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys</p></div>
+        <div><span class="howto-icon">🖱️</span><b>Look around</b><p>Drag with the mouse. Scroll to zoom.</p></div>
+        <div><span class="howto-icon">✋</span><b>Interact</b><p>Walk close to glowing things and press <kbd>E</kbd></p></div>
+        <div><span class="howto-icon">🧩</span><b>Code</b><p>Drag blocks into your program, then press <b>Run Code</b></p></div>
+        <div><span class="howto-icon">📍</span><b>Find your way</b><p>Follow the glowing beacon and the arrow on the mission card</p></div>
+        <div><span class="howto-icon">🌙</span><b>Moon jump</b><p>Press <kbd>Space</kbd> — gravity is weaker here!</p></div>
+      </div>
+      <button class="btn btn--primary" data-close="howto">Got it!</button>
+    </div>
+  </section>
+
+  <!-- Science / NASA info -->
+  <section id="info-panel" class="modal hidden"></section>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
