@@ -24,6 +24,12 @@ import { MissionPanel } from '../ui/MissionPanel.js';
 import { MainMenu, showScreen, openModal, closeModal } from '../ui/MainMenu.js';
 import { CharacterSelection } from '../ui/CharacterSelection.js';
 import { SuccessScreen } from '../ui/SuccessScreen.js';
+import { QuizPanel } from '../ui/QuizPanel.js';
+import { ShopPanel } from '../ui/ShopPanel.js';
+import { Mining, PICKAXE_TIERS } from './Mining.js';
+import { Rover } from './Rover.js';
+import { PetCompanion, PETS, EGG_PRICE, rollPet, getPet } from './Pet.js';
+import { ZoneManager, ZONES } from './ZoneManager.js';
 
 const SHOWCASE = new THREE.Vector3(0, 120, 0); // "deck" floating in space for the menus
 const DEFAULT_LOOK = { accent: '#CE1126', visor: '#FFC857', headlamp: true };
@@ -48,6 +54,15 @@ export class Game {
     };
     this.missions = new MissionManager(this);
 
+    // Free-play systems (stars, mining, rover, pets, portal, quiz)
+    this.ui.quiz = new QuizPanel(document.getElementById('quiz-modal'), { state: this.state, sound: this.sound });
+    this.ui.shop = new ShopPanel(document.getElementById('shop-modal'), this.sound);
+    this.mining = new Mining(this);
+    this.rover = new Rover(this.world, LOCATIONS.roverPark, Math.PI);
+    this.scene.add(this.rover.group);
+    this.zones = new ZoneManager(this);
+    this.pet = null;
+
     this.mode = 'splash';
     this.cinematic = false;
     this.paused = false;
@@ -64,6 +79,7 @@ export class Game {
     this.setupKeys();
     this.setupHudButtons();
     this.setupWorldInteractions();
+    this.setupFreePlay();
     window.addEventListener('resize', () => this.resize());
   }
 
@@ -82,7 +98,8 @@ export class Game {
     r.outputColorSpace = THREE.SRGBColorSpace;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1200);
+    // far = 700: the bonus planet zones (1200 units away) are never drawn at the same time as the Moon
+    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 700);
 
     // Soft bloom makes screens, lights and the beacon glow
     try {
@@ -171,7 +188,7 @@ export class Game {
       if (this.mode === 'play' && !this.isBlocked()) this.interactions.interact();
     });
     this.input.onKey(' ', () => {
-      if (this.mode === 'play' && !this.isBlocked()) this.player.jump(this.sound);
+      if (this.mode === 'play' && !this.isBlocked() && !this.rover.driving) this.player.jump(this.sound);
     });
     this.input.onKey('escape', () => this.handleEscape());
     this.input.onKey('h', () => document.getElementById('controls-hint').classList.toggle('hidden'));
@@ -221,6 +238,224 @@ export class Game {
   }
 
   // ======================================================
+  // Free play: stars, mining, rover, pets, portal, quiz
+  // ======================================================
+  setupFreePlay() {
+    const W = this.world;
+    this.mining.populateMoon();
+    // While driving, the only thing you can do with E is get out
+    this.interactions.filter = (item) => !this.rover.driving || item.id === 'rover-exit';
+
+    this.interactions.add({
+      id: 'tool-shop', position: W.toolShop.interactPoint, priority: 1, label: 'Open the Tool Shop ⛏️',
+      isActive: () => !this.cinematic, onInteract: () => this.openToolShop(),
+    });
+    this.interactions.add({
+      id: 'egg-incubator', position: W.eggs.interactPoint, priority: 1, label: `Hatch an Alien Egg (${EGG_PRICE} ⭐)`,
+      isActive: () => !this.cinematic, onInteract: () => this.openEggShop(),
+    });
+    this.interactions.add({
+      id: 'galaxy-portal', position: W.portal.interactPoint, radius: 2.8, priority: 2, label: 'Use the Galaxy Portal 🌌',
+      isActive: () => !this.cinematic && !this.zones.current, onInteract: () => this.openPortal(),
+    });
+    this.interactions.add({
+      id: 'rover-enter', position: this.rover.position, radius: 3.4, priority: 1, label: 'Drive the Bahrain Rover 🚙',
+      isActive: () => !this.cinematic && !this.rover.driving && !this.zones.current, onInteract: () => this.enterRover(),
+    });
+    this.interactions.add({
+      id: 'rover-exit', position: this.rover.position, radius: Infinity, priority: 5, label: 'Get out of the rover',
+      isActive: () => this.rover.driving, onInteract: () => this.exitRover(),
+    });
+
+    document.getElementById('btn-quiz').addEventListener('click', () => {
+      this.sound.unlock();
+      this.sound.click();
+      if (!this.cinematic && !this.coding.isOpen) this.ui.quiz.open();
+    });
+
+    // Click (without dragging the camera) swings the pickaxe
+    let down = null;
+    this.canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; });
+    this.canvas.addEventListener('pointerup', (e) => {
+      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
+      down = null;
+      if (this.canUseTools() && !this.isBlocked()) this.mining.swing();
+    });
+
+    this.state.on('stars', () => this.ui.shop.refresh());
+  }
+
+  /** Mining & pets only work while walking around in normal play. */
+  canUseTools(forPet = false) {
+    return this.mode === 'play' && !this.cinematic && !this.paused && (forPet || !this.rover.driving) && !!this.player;
+  }
+
+  // ---- Tool shop ----
+  openToolShop() {
+    this.ui.shop.open(() => {
+      const s = this.state;
+      return {
+        tag: 'Tool Shop', title: '⛏️ Pickaxe Upgrades', stars: s.stars,
+        subtitle: 'Break glowing crystal rocks to collect stars. Better pickaxes break rocks faster and give more stars!',
+        items: PICKAXE_TIERS.map((t, i) => {
+          const owned = i <= s.pickaxeTier;
+          return {
+            icon: t.icon, name: t.name, badge: `${t.power}× power`, desc: t.desc, highlight: i === s.pickaxeTier,
+            button: owned
+              ? { label: i === s.pickaxeTier ? '✓ Equipped' : 'Owned', disabled: true }
+              : { label: `Buy (${t.price} ⭐)`, primary: true, disabled: s.stars < t.price, onClick: () => this.buyPickaxe(i) },
+          };
+        }),
+        footer: 'Tip: earn stars by finishing missions, mining rocks and answering the 🧠 Code Quiz.',
+      };
+    });
+  }
+
+  buyPickaxe(i) {
+    const t = PICKAXE_TIERS[i];
+    if (!this.state.spendStars(t.price, `buy ${t.name}`)) { this.sound.error(); return; }
+    this.state.pickaxeTier = i;
+    this.mining.equip();
+    this.ui.hud.setTool(`${t.icon} ${t.name}`);
+    this.sound.success();
+    this.world.bursts.spawn(this.player.position.clone().add(new THREE.Vector3(0, 2, 0)), { color: t.glow || '#FFC857', count: 60, speed: 5 });
+    this.ui.shop.refresh();
+  }
+
+  // ---- Alien eggs & pets ----
+  openEggShop() {
+    this.ui.shop.open(() => {
+      const s = this.state;
+      return {
+        tag: 'Alien Egg Incubator', title: '🥚 Hatch an Alien Pet', stars: s.stars,
+        subtitle: `Spend <b>${EGG_PRICE} ⭐</b> to hatch a mystery egg. Your pet floats beside you and mines nearby rocks for bonus stars!`,
+        items: [
+          {
+            icon: '🥚', name: 'Mystery Alien Egg', desc: 'It could be any of the pets below — rarer pets are stronger!',
+            button: { label: `Hatch (${EGG_PRICE} ⭐)`, primary: true, disabled: s.stars < EGG_PRICE, onClick: () => this.hatchEgg() },
+          },
+          ...PETS.map((p) => ({
+            icon: p.emoji, name: p.name, badge: `${p.rarity} · ${Math.round(p.chance * 100)}%`,
+            desc: `Mining power ${p.power} · +${p.bonus} bonus ⭐ per rock`, highlight: s.pet === p.id,
+          })),
+        ],
+        footer: s.pet ? `Your pet: <b>${getPet(s.pet).name}</b>. Hatching again gives you a new pet.` : '',
+      };
+    });
+  }
+
+  async hatchEgg() {
+    if (!this.state.spendStars(EGG_PRICE, 'alien egg')) { this.sound.error(); return; }
+    this.ui.shop.close();
+    const def = rollPet();
+    const E = this.world.eggs;
+    const eggWorld = E.group.position.clone().add(new THREE.Vector3(0, 1.6, 0));
+    this.beginCinematic();
+    await this.moveCamera(eggWorld.clone().add(new THREE.Vector3(5, 1.8, -1.5)), eggWorld, 1.0);
+    E.eggMat.emissiveIntensity = 0.7;
+    await this.tweens.add({
+      duration: 1.6, group: 'free',
+      update: (k) => {
+        E.egg.rotation.z = Math.sin(k * 40) * 0.3 * k;
+        E.eggMat.emissiveIntensity = 0.7 + k * 3;
+      },
+    });
+    this.sound.hatch();
+    this.world.bursts.spawn(eggWorld, { color: def.color, count: 120, speed: 7, size: 0.6 });
+    this.world.bursts.spawn(eggWorld, { color: '#ffffff', count: 40, speed: 5 });
+    E.egg.visible = false;
+    E.egg.rotation.z = 0;
+    this.setPet(def);
+    this.pet.group.position.copy(eggWorld);
+    this.pet.group.scale.setScalar(0.01);
+    await this.tweens.add({ duration: 0.7, ease: Ease.back, group: 'free', update: (k) => this.pet.group.scale.setScalar(Math.max(0.01, k)) });
+    this.ui.mission.alert(`🎉 You hatched a ${def.rarity} ${def.name}!`, true);
+    await this.tweens.wait(1.6, 'free');
+    E.egg.visible = true;
+    E.eggMat.emissiveIntensity = 0.7;
+    this.endCinematic();
+    this.ui.mission.say('control', `${def.emoji} ${def.name} will follow you and mine star rocks near you. Walk close to some rocks and watch!`);
+  }
+
+  setPet(def) {
+    this.pet?.dispose();
+    this.pet = new PetCompanion(this, def);
+    this.state.pet = def.id;
+  }
+
+  // ---- Rover ----
+  enterRover() {
+    if (this.cinematic || this.rover.driving) return;
+    this.rover.setDriving(true);
+    this.player.astronaut.setSitting(true);
+    this.player.astronaut.holdTool(null);
+    this.player.velocity.set(0, 0, 0);
+    this.cameraCtl.followYaw = () => this.rover.heading - Math.PI;
+    this.savedCamDistance = this.cameraCtl.distance;
+    this.cameraCtl.distance = 11;
+    this.sound.engine();
+    if (this.state.characterId === 'amer') this.ui.mission.say('amer', 'Hayyakum Allah — حياكم الله — driving the rover is my favourite job. Hold on tight!');
+    else this.ui.mission.say('control', '🚙 W / S to drive, A / D to steer, E to get out. Drive carefully around the craters!');
+  }
+
+  exitRover() {
+    if (!this.rover.driving) return;
+    const r = this.rover;
+    r.setDriving(false);
+    const a = this.player.astronaut;
+    a.setSitting(false);
+    // Step out on the driver's right side (try the left if it's blocked)
+    const rx = -Math.cos(r.heading), rz = Math.sin(r.heading);
+    let x = r.position.x + rx * 2.8, z = r.position.z + rz * 2.8;
+    if (this.world.colliders.some((c) => c !== r.collider && c.r && Math.hypot(c.x - x, c.z - z) < c.r + 0.6)) {
+      x = r.position.x - rx * 2.8; z = r.position.z - rz * 2.8;
+    }
+    this.player.teleport(x, z, r.heading);
+    this.cameraCtl.followYaw = null;
+    this.cameraCtl.distance = this.savedCamDistance || 8.5;
+    this.mining.equip();
+  }
+
+  // ---- Galaxy portal ----
+  openPortal() {
+    this.ui.shop.open(() => {
+      const s = this.state;
+      return {
+        tag: 'Galaxy Portal', title: '🌌 Travel the Solar System', stars: s.stars,
+        subtitle: 'Unlock a planet zone with your stars, then step through the portal! Each zone has star tokens to collect and a bonus reward.',
+        items: ZONES.filter((z) => z.id !== 'moon').map((z) => {
+          const unlocked = this.zones.isUnlocked(z.id);
+          const done = this.zones.completed.has(z.id);
+          return {
+            icon: z.emoji, name: z.name, badge: done ? '✅ Complete' : unlocked ? 'Unlocked' : `${z.price} ⭐`, desc: z.desc, highlight: unlocked,
+            button: unlocked
+              ? { label: 'Travel ✨', primary: true, onClick: () => { this.ui.shop.close(); this.zones.travel(z.id); } }
+              : { label: `Unlock (${z.price} ⭐)`, disabled: s.stars < z.price, onClick: () => { if (this.zones.unlock(z.id)) this.ui.shop.refresh(); } },
+          };
+        }),
+        footer: 'In a zone, walk into its portal to come back to the Moon Base.',
+      };
+    });
+  }
+
+  /** Objective card when no mission is running. */
+  showFreePlayObjective() {
+    const m = this.missions.active;
+    if (m && m.lastObjective) {
+      // A mission is still in progress — put its objective back
+      m.setObjective(m.lastObjective);
+      if (m.stage === 'travel') this.setObjectiveTarget(m.target);
+      this.ui.mission.restoreAlert();
+      return;
+    }
+    this.ui.mission.setObjective({
+      tag: 'Free Play', title: 'Explore the Moon 🌙',
+      text: '⛏️ Mine star rocks · 🚙 Drive the rover · 🥚 Hatch a pet · 🌌 Try the Galaxy Portal · 🧠 Code Quiz',
+    });
+    this.setObjectiveTarget(this.world.portal.interactPoint, '#9b87f5');
+  }
+
+  // ======================================================
   // Menus & showcase
   // ======================================================
   start() {
@@ -241,11 +476,11 @@ export class Game {
     this.selection.showSelect();
     this.applyLookToShowcase();
     if (!fromCustom) {
-      this.camera.position.set(0, SHOWCASE.y + 1.4, 8.6);
-      this.camLook.set(0, SHOWCASE.y - 0.35, 0);
+      this.camera.position.set(0, SHOWCASE.y + 1.3, 8.8);
+      this.camLook.set(0, SHOWCASE.y - 0.9, 0);
       this.camera.lookAt(this.camLook);
     } else {
-      this.moveCamera(new THREE.Vector3(0, SHOWCASE.y + 1.4, 8.6), new THREE.Vector3(0, SHOWCASE.y - 0.35, 0), 1.1);
+      this.moveCamera(new THREE.Vector3(0, SHOWCASE.y + 1.3, 8.8), new THREE.Vector3(0, SHOWCASE.y - 0.9, 0), 1.1);
     }
   }
 
@@ -311,6 +546,8 @@ export class Game {
       return npc;
     });
     this.player.extraColliders = this.npcs.map(() => ({ x: 0, z: 0, r: 0.55 }));
+    this.mining.equip();
+    this.ui.hud.setTool(`${this.mining.tier.icon} ${this.mining.tier.name}`);
     this.resetFamilyPositions();
   }
 
@@ -447,6 +684,7 @@ export class Game {
   // Cinematics & camera helpers
   // ======================================================
   beginCinematic() {
+    if (this.rover.driving) this.exitRover();
     this.cinematic = true;
     document.body.classList.add('cinematic');
     this.cameraCtl.enabled = false;
@@ -521,6 +759,7 @@ export class Game {
 
   isBlocked() {
     return this.paused || this.cinematic || this.coding.isOpen || this.ui.success.isOpen
+      || this.ui.quiz.isOpen || this.ui.shop.isOpen || this.zones.busy
       || !document.getElementById('howto').classList.contains('hidden')
       || !document.getElementById('info-panel').classList.contains('hidden');
   }
@@ -529,6 +768,8 @@ export class Game {
     if (!document.getElementById('howto').classList.contains('hidden')) { closeModal('howto'); return; }
     if (!document.getElementById('info-panel').classList.contains('hidden')) { closeModal('info-panel'); return; }
     if (this.coding.isOpen) { if (!this.coding.running) this.coding.close(); return; }
+    if (this.ui.quiz.isOpen) { this.ui.quiz.close(); return; }
+    if (this.ui.shop.isOpen) { this.ui.shop.close(); return; }
     if (this.mode !== 'play' || this.cinematic || this.ui.success.isOpen) return;
     this.setPaused(!this.paused);
   }
@@ -541,6 +782,10 @@ export class Game {
 
   /** Bring the world, family and UI back to the start of the current mission. */
   resetForMission() {
+    if (this.rover.driving) this.exitRover();
+    if (this.zones.current) { this.zones.current = null; this.world.setZone(null); }
+    this.ui.quiz.close();
+    this.ui.shop.close();
     this.tweens.cancelGroup('mission');
     this.tweens.cancelGroup('camera');
     this.coding.close(true);
@@ -557,16 +802,19 @@ export class Game {
     this.cameraCtl.yaw = 0;
     this.cameraCtl.snap(this.player.position);
     this.setObjectiveTarget(null);
+    this.pet?.snapToPlayer();
   }
 
   showFinal() {
-    this.setObjectiveTarget(null);
-    this.ui.mission.setObjective({ tag: 'Complete!', title: 'Base Saved 🏆', text: 'Explore the base and talk to your family.' });
+    this.showFreePlayObjective();
     this.ui.success.showFinal({
       name: getCharacter(this.state.characterId).name,
       resources: this.state.resources,
       onReplay: () => this.missions.restartAll(),
-      onExplore: () => this.ui.mission.say('control', 'Great job! Feel free to explore the base. Try the antenna, the greenhouse and the flag!'),
+      onExplore: () => {
+        this.showFreePlayObjective();
+        this.ui.mission.say('control', 'Free play unlocked! Mine star rocks ⛏️, drive the rover 🚙, hatch an alien pet 🥚 and travel through the Galaxy Portal 🌌 to Mars, Saturn and Neptune!');
+      },
       onMenu: () => window.location.reload(),
     });
   }
@@ -593,6 +841,12 @@ export class Game {
       else this.updateActors(dt);
     }
     this.world.update(dt, focus);
+    if (this.mode === 'play') {
+      this.mining.update(dt);
+      this.pet?.update(dt);
+      this.zones.update(dt, this.world.time);
+    }
+    this.world.followSky(this.camera.position);
 
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
@@ -621,9 +875,20 @@ export class Game {
 
   updatePlay(dt) {
     const blocked = this.isBlocked();
-    if (this.cinematic) {
+    if (this.rover.driving && !this.cinematic) {
+      // Driving: the rover moves, the astronaut sits in the seat
+      this.rover.update(dt, blocked ? { x: 0, z: 0 } : this.input.movement());
+      this.rover.seatTransform(this.player.group.position);
+      this.player.heading = this.rover.heading;
+      this.player.group.rotation.y = this.rover.heading;
+      this.player.astronaut.update(dt, { speed: 0 });
+      this.cameraCtl.update(dt, this.player.position);
+      this.npcs.forEach((n) => n.astronaut.update(dt, { speed: n.walking ? 1 : 0 }));
+    } else if (this.cinematic) {
+      this.rover.update(dt, { x: 0, z: 0 });
       this.updateActors(dt);
     } else {
+      this.rover.update(dt, { x: 0, z: 0 });
       const move = blocked ? { x: 0, z: 0 } : this.input.movement();
       this.player.update(dt, move, this.cameraCtl.yaw);
       this.cameraCtl.update(dt, this.player.position);
@@ -658,6 +923,6 @@ export class Game {
       this.ui.hud.updateCompass(0, null);
     }
 
-    if (!this.paused) this.missions.update(dt);
+    if (!this.paused && !this.zones.current) this.missions.update(dt);
   }
 }

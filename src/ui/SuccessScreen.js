@@ -68,7 +68,7 @@ export class SuccessScreen {
         <p class="success-sub">${d.subtitle}</p>
         <div class="stars"><span>⭐</span><span style="animation-delay:.15s">⭐</span><span style="animation-delay:.3s">⭐</span></div>
         <p class="muted" style="margin-bottom:10px">${tries}</p>
-        <div class="res-changes">${changes}</div>
+        <div class="res-changes">${changes}${d.starsEarned ? `<span class="res-change"><b class="up">+${d.starsEarned} ⭐</b> stars earned</span>` : ''}</div>
         <div class="learn-grid">
           <div class="learn-box"><h4>🔎 What happened</h4><p>${d.happened}</p></div>
           <div class="learn-box"><h4>💡 Why it worked</h4><p>${d.why}</p></div>

@@ -14,6 +14,7 @@ export class CameraController {
     this.current = new THREE.Vector3();
     this.lookAt = new THREE.Vector3();
     this.dragging = false;
+    this.followYaw = null;  // function returning a yaw to follow (used when driving)
     this.raycaster = new THREE.Raycaster();
     this.raycaster.camera = camera;
     this.blocked = false;
@@ -72,12 +73,18 @@ export class CameraController {
       }
     }
     // Keep the camera above the ground
-    const ground = this.world.heightAt(this.target.x, this.target.z) + 0.8;
+    const ground = this.world.cameraGround(this.target.x, this.target.z) + 0.8;
     if (this.target.y < ground) this.target.y = ground;
   }
 
   update(dt, focus) {
     if (!this.enabled) return;
+    // Vehicles: swing gently behind the driving direction unless the player is dragging
+    if (this.followYaw != null && !this.dragging) {
+      let diff = this.followYaw() - this.yaw;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      this.yaw += diff * Math.min(1, dt * 2.5);
+    }
     this.computeTarget(focus);
     const k = this.blocked ? 1 - Math.exp(-dt * 25) : 1 - Math.exp(-dt * 8);
     this.current.lerp(this.target, k);

@@ -17,6 +17,17 @@ export class HUD {
     state.on('resources', (r) => this.updateResources(r));
     this.updateResources(state.resources, true);
 
+    // ⭐ Stars counter + current tool
+    this.starsEl = document.createElement('div');
+    this.starsEl.className = 'stars-pill';
+    this.starsEl.innerHTML = '<span class="stars-pill__icon">⭐</span><span class="stars-pill__value">0</span><span class="stars-pill__tool">⛏️ Lunar Pickaxe</span>';
+    document.getElementById('resources').appendChild(this.starsEl);
+    this.starsValue = this.starsEl.querySelector('.stars-pill__value');
+    this.toolEl = this.starsEl.querySelector('.stars-pill__tool');
+    this.shownStars = state.stars;
+    this.starsValue.textContent = state.stars;
+    state.on('stars', ({ stars, delta }) => this.updateStars(stars, delta));
+
     this.compassArrow = document.querySelector('.compass__arrow');
     this.distanceEl = document.getElementById('objective-distance');
 
@@ -80,6 +91,29 @@ export class HUD {
     this.compassArrow.style.transform = `rotate(${angle - Math.PI / 2}rad)`;
     this.distanceEl.textContent = distance < 3 ? 'You\'re here!' : `${Math.round(distance)} m`;
   }
+
+  updateStars(stars, delta) {
+    const from = this.shownStars;
+    this.shownStars = stars;
+    const start = performance.now();
+    const step = (now) => {
+      const k = Math.min(1, (now - start) / 600);
+      this.starsValue.textContent = Math.round(from + (stars - from) * k);
+      if (k < 1 && this.shownStars === stars) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+    this.starsEl.classList.remove('bump');
+    void this.starsEl.offsetWidth;
+    this.starsEl.classList.add('bump');
+    // Floating "+6 ⭐" toast
+    const toast = document.createElement('div');
+    toast.className = `stars-toast ${delta < 0 ? 'minus' : ''}`;
+    toast.textContent = `${delta > 0 ? '+' : ''}${delta} ⭐`;
+    this.starsEl.appendChild(toast);
+    setTimeout(() => toast.remove(), 1200);
+  }
+
+  setTool(name) { this.toolEl.textContent = name; }
 
   // ---- Program runner overlay ----
   showRunner(title, lines) {

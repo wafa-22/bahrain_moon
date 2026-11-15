@@ -1,5 +1,5 @@
 // Character selection (Screen 2) and spacesuit customization (Screen 3).
-import { CHARACTERS, ACCENT_COLORS, VISOR_COLORS } from '../characters/characterData.js';
+import { CHARACTERS, ACCENT_COLORS, VISOR_COLORS, getCharacter } from '../characters/characterData.js';
 import { showScreen } from './MainMenu.js';
 
 export class CharacterSelection {
@@ -21,7 +21,9 @@ export class CharacterSelection {
           <div><div class="char-card__name">${c.name}</div><div class="char-card__arabic">${c.arabic}</div></div>
         </div>
         <div class="char-card__role">${c.role}</div>
+        <div class="char-card__home">📍 ${c.hometown} · ${c.hometownAr}</div>
         <div class="char-card__desc">${c.description}</div>
+        <div class="char-card__traits">${c.traits.map((t) => `<span>${t}</span>`).join('')}</div>
         <button class="char-card__btn">Select</button>
       </div>`).join('');
     cards.querySelectorAll('.char-card').forEach((card) => {
@@ -71,6 +73,9 @@ export class CharacterSelection {
       c.classList.toggle('selected', sel);
       c.querySelector('.char-card__btn').textContent = sel ? '✓ Selected' : 'Select';
     });
+    const c = getCharacter(id);
+    const sub = document.querySelector('#screen-select .screen-header p');
+    if (sub) sub.innerHTML = `<b style="color:${c.color}">${c.name}:</b> “${c.greeting}”`;
     this.sound.pick();
     this.opts.onSelect(id);
   }

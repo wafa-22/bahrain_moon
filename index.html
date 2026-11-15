@@ -107,6 +107,7 @@
     </div>
 
     <div class="hud-buttons">
+      <button id="btn-quiz" class="icon-btn icon-btn--quiz" title="Code Output Quiz (+50 ⭐)">🧠</button>
       <button id="btn-sound" class="icon-btn" title="Sound on/off">🔊</button>
       <button id="btn-info" class="icon-btn" title="Moon science">🔭</button>
       <button id="btn-pause" class="icon-btn" title="Pause (Esc)">⏸</button>
@@ -117,6 +118,7 @@
       <span>🖱️ Drag to look</span>
       <span><kbd>E</kbd> Interact</span>
       <span><kbd>Space</kbd> Moon jump</span>
+      <span>🖱️ Click ⛏ Mine</span>
       <span><kbd>Esc</kbd> Pause</span>
     </div>
   </section>
@@ -153,10 +155,19 @@
         <div><span class="howto-icon">🧩</span><b>Code</b><p>Drag blocks into your program, then press <b>Run Code</b></p></div>
         <div><span class="howto-icon">📍</span><b>Find your way</b><p>Follow the glowing beacon and the arrow on the mission card</p></div>
         <div><span class="howto-icon">🌙</span><b>Moon jump</b><p>Press <kbd>Space</kbd> — gravity is weaker here!</p></div>
+        <div><span class="howto-icon">⛏️</span><b>Mine for stars</b><p>Click or press <kbd>E</kbd> next to a glowing crystal rock</p></div>
+        <div><span class="howto-icon">🚙</span><b>Drive the rover</b><p>Press <kbd>E</kbd> at the rover, <kbd>W</kbd><kbd>S</kbd> drive, <kbd>A</kbd><kbd>D</kbd> steer</p></div>
+        <div><span class="howto-icon">🧠</span><b>Code quiz</b><p>Tap 🧠 and guess what the code prints for +50 ⭐</p></div>
       </div>
       <button class="btn btn--primary" data-close="howto">Got it!</button>
     </div>
   </section>
+
+  <!-- Code Output Quiz (QuizPanel.js) -->
+  <section id="quiz-modal" class="modal hidden" role="dialog"></section>
+
+  <!-- Tool shop / egg incubator / galaxy portal menus (ShopPanel.js) -->
+  <section id="shop-modal" class="modal hidden" role="dialog"></section>
 
   <!-- Science / NASA info -->
   <section id="info-panel" class="modal hidden"></section>

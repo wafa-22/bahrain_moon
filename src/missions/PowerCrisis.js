@@ -116,6 +116,7 @@ export class PowerCrisis extends Mission {
     g.tweenResource('power', 95, 1.5);
     g.tweenResource('food', this.state.resources.food + 10, 1.5);   // greenhouse grow lights back on
     W.bursts.spawn(new THREE.Vector3(H.x, 8, H.z), { color: '#FFC857', count: 90, speed: 7 });
+    this.ui.mission.lastAlert = null; // the emergency is over
     this.ui.mission.alert('✅ POWER RESTORED — 95%', true);
     await g.tweens.wait(2.6, 'mission');
     if (!this.alive(run)) return;

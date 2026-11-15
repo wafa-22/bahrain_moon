@@ -63,6 +63,21 @@ and all textures and sounds are generated in code.
   constraints). More than one correct order works.
 - Mistakes are never punished: hints get more specific after a few tries, and the full answer is never shown.
 
+## 🌟 Free play (after or between missions)
+
+| Feature | How it works |
+|---|---|
+| **⭐ Stars** | Start with 100 ⭐. +25 for working code, +100 per mission, +50 per quiz answer, star rocks, star tokens and zone bonuses. Shown under the resources in the HUD. |
+| **⛏️ Mining** | 34 glowing crystal rocks around the base (plus more on Mars and Neptune). Click or press `E` next to one to swing the pickaxe. Broken rocks drop stars and grow back after 25 s. |
+| **🛠️ Tool Shop** | Next to the landing pad. Plasma Pickaxe (2×, 120 ⭐) and SuperNova Pickaxe (4×, 300 ⭐). |
+| **🚙 Bahrain Rover** | Parked beside the pad. `E` gets in or out, `W`/`S` drive, `A`/`D` steer. It tilts and bounces over craters and the camera follows. |
+| **🥚 Alien Eggs** | 80 ⭐ hatches a random pet: Astro Slime, Moon Bot, Cosmic Dragon or Galaxy Phoenix. The pet floats beside you and mines nearby rocks for bonus stars. |
+| **🧠 Code Output Quiz** | Button in the HUD. 9 "what will this code print?" questions on Variables, Loops and If/Else, each with an explanation. |
+| **🌌 Galaxy Portal** | Unlock and visit **Mars Lava Zone** (150 ⭐), **Saturn Rings Parkour** (250 ⭐) and **Neptune Ice World** (350 ⭐). Each zone has star tokens and a completion bonus. Walk into the zone's portal to go home. |
+| **Keep Exploring** | After the final screen, free play continues with all of the above. |
+
+Each character card also shows a Bahraini hometown (Manama, Muharraq, Riffa, Awali) and cultural traits.
+
 ## 🗂️ Project structure
 
 ```
@@ -81,11 +96,15 @@ bahrain_moon/
     │   ├── CameraController.js  # Follow camera (drag/zoom, avoids walls)
     │   ├── Interactions.js # "Press E" system
     │   ├── Input.js · Sound.js (Web Audio synth effects)
-    ├── world/              # terrain.js · sky.js · structures.js · effects.js
+    │   ├── Mining.js       # Star rocks, pickaxe tiers, star drops
+    │   ├── Rover.js        # Drivable Bahrain Rover
+    │   ├── Pet.js          # Alien pets (models + follow/mine behaviour)
+    │   └── ZoneManager.js  # Galaxy Portal travel, tokens, checkpoints
+    ├── world/              # terrain.js · sky.js · structures.js · effects.js · stations.js · zones.js
     ├── characters/         # characterData.js · CharacterFactory.js (3D astronauts)
     ├── missions/           # Mission.js (base) · MissionManager.js · PowerCrisis · OxygenEmergency · SolarStorm
-    ├── coding/             # CodingBlocks.js (reusable drag/click UI) · CodeValidator.js
-    ├── ui/                 # MainMenu · CharacterSelection · HUD · MissionPanel · SuccessScreen
+    ├── coding/             # CodingBlocks.js (reusable drag/click UI) · CodeValidator.js · quizData.js
+    ├── ui/                 # MainMenu · CharacterSelection · HUD · MissionPanel · SuccessScreen · QuizPanel · ShopPanel
     └── utils/              # Tween.js · noise.js · textures.js (canvas textures)
 ```
 
@@ -114,7 +133,7 @@ effects, science panel.
 - Touch controls (on-screen joystick) for tablets and phones
 - Arabic language toggle
 - Real voice-over and music
-- Save progress between sessions
+- Save progress and stars between sessions (they reset when the page is reloaded)
 - Proper 3D models (GLTF) for characters and buildings
 
 Original assets only: no NASA logos, no copyrighted game assets.

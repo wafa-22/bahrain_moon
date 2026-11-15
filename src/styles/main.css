@@ -206,6 +206,7 @@ kbd {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 230px));
   gap: 16px;
+  align-items: end;
 }
 .char-card {
   position: relative;
@@ -236,7 +237,15 @@ kbd {
 .char-card__name { font-family: var(--font-head); font-size: 1.35rem; line-height: 1; }
 .char-card__arabic { font-size: .9rem; color: var(--gray); }
 .char-card__role { font-family: var(--font-head); color: var(--yellow); font-size: .95rem; margin-bottom: 4px; }
-.char-card__desc { font-size: .85rem; color: #d3d9ea; line-height: 1.35; min-height: 3.4em; }
+.char-card__desc { display: none; font-size: .82rem; color: #d3d9ea; line-height: 1.35; margin-top: 4px; }
+.char-card.selected .char-card__desc { display: block; }
+.char-card__home { font-size: .82rem; color: var(--blue); font-weight: 700; margin-bottom: 4px; }
+.char-card__traits { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.char-card__traits span {
+  font-size: .72rem; padding: 3px 8px; border-radius: 99px;
+  background: color-mix(in srgb, var(--card-color) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-color) 55%, transparent);
+}
 .char-card__btn {
   margin-top: 10px; width: 100%;
   padding: 8px; border-radius: 999px; border: none;
@@ -301,5 +310,5 @@ kbd {
 
 @media (max-width: 900px) {
   .character-cards { grid-template-columns: repeat(2, minmax(140px, 220px)); bottom: 86px; }
-  .char-card__desc { display: none; }
+  .char-card__desc, .char-card__traits { display: none; }
 }

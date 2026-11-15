@@ -146,6 +146,10 @@ export class Astronaut {
     };
     this.leftArm = makeArm(-0.55);
     this.rightArm = makeArm(0.55);
+    // Attachment point in the right glove (used for the pickaxe)
+    this.hand = new THREE.Group();
+    this.hand.position.set(0, -0.64, 0.05);
+    this.rightArm.add(this.hand);
 
     // ---- Head + helmet ----
     const head = new THREE.Group();
@@ -257,6 +261,19 @@ export class Astronaut {
 
   wave(seconds = 2) { this.waveTimer = seconds; }
 
+  /** Pickaxe swing (0.42 s). */
+  swing() { this.swingTimer = 0.42; }
+
+  /** Seated pose for driving the rover. */
+  setSitting(on) { this.sitting = on; }
+
+  /** Put a tool (Object3D) in the right hand, or remove it with null. */
+  holdTool(object) {
+    if (this.tool) this.hand.remove(this.tool);
+    this.tool = object;
+    if (object) this.hand.add(object);
+  }
+
   /**
    * Animate limbs.
    * @param {number} dt
@@ -286,6 +303,22 @@ export class Astronaut {
       this.rightArm.rotation.z = 0.9;
       this.leftLeg.rotation.x = 0.35;
       this.rightLeg.rotation.x = -0.2;
+    }
+
+    if (this.sitting) {
+      this.leftLeg.rotation.x = -1.45;
+      this.rightLeg.rotation.x = -1.45;
+      this.leftArm.rotation.x = -0.9;
+      this.rightArm.rotation.x = -0.9;
+      this.rig.position.y = 0;
+    }
+
+    if (this.swingTimer > 0) {
+      this.swingTimer -= dt;
+      const k = 1 - Math.max(0, this.swingTimer) / 0.42; // 0 → 1
+      // Wind up over the head, then strike down
+      this.rightArm.rotation.x = k < 0.45 ? -2.8 * (k / 0.45) : -2.8 + 2.6 * Math.min(1, (k - 0.45) / 0.3);
+      this.rightArm.rotation.z = 0.15;
     }
 
     if (this.waveTimer > 0) {

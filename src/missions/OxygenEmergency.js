@@ -166,6 +166,7 @@ export class OxygenEmergency extends Mission {
     W.setOxygenScreen(92, 'BACKUP ON ✓', '#54D6AE');
     g.tweenResource('oxygen', 92, 1.6);
     g.tweenResource('power', this.state.resources.power - 8, 1.6); // the backup pump uses some electricity
+    this.ui.mission.lastAlert = null; // the emergency is over
     this.ui.mission.alert('✅ OXYGEN SAFE — 92%', true);
     g.ui.hud.runnerDone();
     await g.tweens.wait(2.4, 'mission');

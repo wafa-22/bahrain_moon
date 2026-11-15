@@ -50,6 +50,7 @@ export class Mission {
   }
 
   setObjective(text) {
+    this.lastObjective = text;
     this.ui.mission.setObjective({ tag: this.tag, title: this.title, text });
   }
 
@@ -65,6 +66,7 @@ export class Mission {
       },
       onSuccess: (program) => {
         this.game.closeCoding();
+        this.state.addStars(25, 'coding challenge'); // reward for working code
         this.stage = 'executing';
         this.execute(program, this.run);
       },
@@ -76,12 +78,16 @@ export class Mission {
 
   finish(data) {
     this.stage = 'done';
+    this.lastObjective = null;
+    this.ui.mission.lastAlert = null;
+    this.state.addStars(100, `${this.title} complete`);
     this.state.completeMission(this.id);
     this.ui.success.show({
       ...data,
       before: this.before,
       after: { ...this.state.resources },
       attempts: this.attempts,
+      starsEarned: 125,
       onContinue: () => this.game.missions.startNext(),
       continueLabel: this.game.missions.isLast(this) ? 'Finish Adventure 🏆' : 'Continue Adventure →',
     });

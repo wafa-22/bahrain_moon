@@ -96,6 +96,7 @@ export function buildSky() {
     skyMat,
     stars,
     earth,
+    atmo,
     sun,
     update(dt, time) {
       skyMat.uniforms.uTime.value = time;

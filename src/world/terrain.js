@@ -30,6 +30,10 @@ export const FLAT_SPOTS = [
   { x: 17, z: 16, r: 6 },    // greenhouse
   { x: -18, z: 15, r: 4 },   // antenna
   { x: 0, z: 21, r: 7 },     // landing pad
+  { x: -8, z: 17, r: 3 },    // tool shop
+  { x: -11.5, z: 23, r: 3.5 }, // alien egg incubator
+  { x: 12, z: 29, r: 5 },    // galaxy portal
+  { x: 8.5, z: 21.5, r: 3.5 }, // rover parking
 ];
 
 function rawHeight(x, z) {

@@ -29,14 +29,28 @@ export class MissionPanel {
   }
 
   alert(text, good = false) {
+    if (!good) { this.lastAlert = text; this.suppressed = false; } // remembered so it can come back later
     this.alertEl.textContent = text;
     this.alertEl.classList.toggle('good', good);
     this.alertEl.classList.remove('hidden');
     clearTimeout(this.alertTimer);
-    if (good) this.alertTimer = setTimeout(() => this.clearAlert(), 4000);
+    if (good) {
+      this.alertTimer = setTimeout(() => {
+        this.alertEl.classList.add('hidden');
+        if (this.lastAlert && !this.suppressed) this.alert(this.lastAlert);
+      }, 4000);
+    }
   }
 
-  clearAlert() { this.alertEl.classList.add('hidden'); }
+  clearAlert(forget = true) {
+    this.alertEl.classList.add('hidden');
+    if (forget) this.lastAlert = null;
+  }
+
+  /** Hide the alert without forgetting it (e.g. while visiting another planet). */
+  hideAlert() { this.alertEl.classList.add('hidden'); this.suppressed = true; }
+
+  restoreAlert() { this.suppressed = false; if (this.lastAlert) this.alert(this.lastAlert); }
 
   /**
    * Queue a line of dialogue.

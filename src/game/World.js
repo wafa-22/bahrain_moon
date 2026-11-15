@@ -9,6 +9,7 @@ import {
   buildPath, curveTube,
 } from '../world/structures.js';
 import { Bursts, DustMotes, StormParticles, EnergyFlow, ObjectiveBeacon } from '../world/effects.js';
+import { buildToolShop, buildEggIncubator, buildGalaxyPortal } from '../world/stations.js';
 import { Ease, lerp } from '../utils/Tween.js';
 
 export const LOCATIONS = {
@@ -20,6 +21,10 @@ export const LOCATIONS = {
   antenna: new THREE.Vector3(-18, 0, 15),
   flag: new THREE.Vector3(6, 0, 13),
   pad: new THREE.Vector3(0, 0, 21),
+  toolShop: new THREE.Vector3(-8, 0, 17),
+  eggs: new THREE.Vector3(-11.5, 0, 23),
+  portal: new THREE.Vector3(12, 0, 29),
+  roverPark: new THREE.Vector3(8.5, 0, 21.5),
 };
 
 const PATHS = [
@@ -42,6 +47,7 @@ export class World {
     this.stormActive = false;
     this.powerOn = false;
     this.oxygenBackup = false;
+    this.zone = null;   // null = on the Moon; otherwise a bonus planet zone
     this.build();
   }
 
@@ -98,7 +104,16 @@ export class World {
       scene.add(b.group);
       this.colliders.push(...b.colliders);
     }
-    this.cameraBlockers = [this.habitat.group, this.solar.group, this.oxygen.group, this.shelter.group, this.greenhouse.group, this.antenna.group, this.pad.lander];
+    // Free-play stations
+    this.toolShop = buildToolShop(LOCATIONS.toolShop);
+    this.eggs = buildEggIncubator(LOCATIONS.eggs);
+    this.portal = buildGalaxyPortal(LOCATIONS.portal);
+    for (const b of [this.toolShop, this.eggs, this.portal]) {
+      scene.add(b.group);
+      this.colliders.push(...b.colliders);
+    }
+
+    this.moonBlockers = [this.habitat.group, this.solar.group, this.oxygen.group, this.shelter.group, this.greenhouse.group, this.antenna.group, this.pad.lander];
     this.pointLights = [...this.habitat.lights, ...this.solar.lights, ...this.oxygen.lights];
 
     // Power cable from the batteries to the habitat, oxygen pipe from the station
@@ -140,7 +155,44 @@ export class World {
   }
 
   heightAt(x, z) { return getHeight(x, z); }
-  get playRadius() { return PLAY_RADIUS; }
+  get playRadius() { return this.zone ? Infinity : PLAY_RADIUS; }
+
+  // ---- Zone-aware helpers (Moon terrain or a bonus planet zone) ----
+  /** Ground height under (x, z) for something currently at height y; null = nothing (void). */
+  groundAt(x, z, y = 1e6) { return this.zone ? this.zone.groundAt(x, z, y) : getHeight(x, z); }
+  cameraGround(x, z) { return this.zone ? (this.zone.groundAt(x, z, 1e6) ?? -1e6) : getHeight(x, z); }
+  get activeColliders() { return this.zone ? this.zone.colliders : this.colliders; }
+  get cameraBlockers() { return this.zone ? [] : this.moonBlockers; }
+
+  /** Switch the sky, fog and light colours to a zone (or back to the Moon with null). */
+  setZone(zone) {
+    this.zone = zone;
+    const u = this.sky.skyMat.uniforms;
+    if (!this.moonLook) {
+      this.moonLook = {
+        top: u.uTop.value.clone(), horizon: u.uHorizon.value.clone(), bottom: u.uBottom.value.clone(),
+        fog: this.scene.fog.color.clone(), near: this.scene.fog.near, far: this.scene.fog.far,
+        hemiSky: this.hemi.color.clone(), hemiGround: this.hemi.groundColor.clone(), sun: this.sun.color.clone(),
+      };
+    }
+    const L = this.moonLook;
+    if (!zone) {
+      u.uTop.value.copy(L.top); u.uHorizon.value.copy(L.horizon); u.uBottom.value.copy(L.bottom);
+      this.scene.fog.color.copy(L.fog); this.scene.fog.near = L.near; this.scene.fog.far = L.far;
+      this.hemi.color.copy(L.hemiSky); this.hemi.groundColor.copy(L.hemiGround); this.sun.color.copy(L.sun);
+      this.sky.earth.visible = true;
+      this.sky.atmo.visible = true;
+      return;
+    }
+    u.uTop.value.set(zone.sky.top); u.uHorizon.value.set(zone.sky.horizon); u.uBottom.value.set(zone.sky.bottom);
+    this.scene.fog.color.set(zone.fog.color); this.scene.fog.near = zone.fog.near; this.scene.fog.far = zone.fog.far;
+    this.hemi.color.set(zone.hemi.sky); this.hemi.groundColor.set(zone.hemi.ground); this.sun.color.set(zone.sun);
+    this.sky.earth.visible = zone.id !== 'saturn';
+    this.sky.atmo.visible = this.sky.earth.visible;
+  }
+
+  /** The sky dome travels with the camera so it always surrounds the player. */
+  followSky(cameraPosition) { this.sky.group.position.copy(cameraPosition); }
 
   // ======================================================
   // Mission 01 — Power
@@ -365,6 +417,12 @@ export class World {
     const ringPulse = 0.35 + blink * 0.45;
     this.solar.console.ring.material.opacity = ringPulse;
     this.oxygen.console.ring.material.opacity = ringPulse;
+
+    // Free-play stations
+    this.toolShop.display.rotation.y += dt * 1.2;
+    this.eggs.egg.position.y = 1.55 + Math.sin(t * 2) * 0.08;
+    this.eggs.egg.rotation.y += dt * 0.5;
+    this.portal.update(t);
 
     this.cableFlow.update(dt);
     this.pipeFlow.update(dt);

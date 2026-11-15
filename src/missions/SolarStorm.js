@@ -172,6 +172,7 @@ export class SolarStorm extends Mission {
     family.forEach((a) => a.astronaut?.wave(2.5));
     W.setBasePower(true);
     W.bursts.spawn(new THREE.Vector3(door.x, 3, door.z + 1), { color: '#54D6AE', count: 90, speed: 6 });
+    this.ui.mission.lastAlert = null; // the emergency is over
     this.ui.mission.alert('✅ STORM PASSED — EVERYONE IS SAFE', true);
     g.ui.hud.runnerDone();
     await g.tweens.wait(2.2, 'mission');

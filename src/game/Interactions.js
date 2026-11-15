@@ -6,6 +6,7 @@ export class Interactions {
     this.promptTextEl = promptTextEl;
     this.current = null;
     this.enabled = true;
+    this.filter = null;   // optional (item) => boolean, e.g. only "Exit Rover" while driving
     promptEl.addEventListener('click', () => this.interact());
   }
 
@@ -24,6 +25,7 @@ export class Interactions {
     let best = null, bestScore = Infinity;
     if (this.enabled) {
       for (const item of this.items) {
+        if (this.filter && !this.filter(item)) continue;
         if (!item.isActive()) continue;
         const d = Math.hypot(playerPos.x - item.position.x, playerPos.z - item.position.z);
         if (d > item.radius) continue;

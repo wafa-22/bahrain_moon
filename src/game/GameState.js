@@ -14,6 +14,13 @@ export class GameState {
     this.visor = '#FFC857';
     this.headlamp = true;
 
+    // Free-play economy (kept across mission restarts and "Play Again")
+    this.stars = 100;
+    this.pickaxeTier = 0;          // index into PICKAXE_TIERS (Mining.js)
+    this.unlockedZones = ['moon'];
+    this.pet = null;               // id of the hatched pet companion
+    this.quizSolved = [];          // ids of quiz questions already rewarded
+
     this.resetProgress();
   }
 
@@ -62,6 +69,20 @@ export class GameState {
 
   addResource(key, delta) {
     this.setResource(key, this.resources[key] + delta);
+  }
+
+  // ---- Stars ⭐ ----
+  addStars(amount, reason = '') {
+    if (!amount) return;
+    this.stars = Math.max(0, this.stars + Math.round(amount));
+    this.emit('stars', { stars: this.stars, delta: Math.round(amount), reason });
+  }
+
+  /** Spend stars if there are enough. Returns true on success. */
+  spendStars(amount, reason = '') {
+    if (this.stars < amount) return false;
+    this.addStars(-amount, reason);
+    return true;
   }
 
   // ---- Missions ----

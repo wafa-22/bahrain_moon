@@ -1,10 +1,12 @@
 // Third-person playable astronaut: movement, lunar jump, collisions.
+// Works on the Moon terrain and on the bonus zones (floating platforms, ice, etc.).
 import * as THREE from 'three';
 
 const WALK_SPEED = 6.5;
 const GRAVITY = 7.5;      // softened "moon gravity" so jumps feel floaty
 const JUMP_SPEED = 5.2;
 const PLAYER_RADIUS = 0.55;
+const STEP_DOWN = 0.7;    // stick to the ground when walking down slopes
 
 export class Player {
   constructor(scene, world, astronaut) {
@@ -14,7 +16,7 @@ export class Player {
     scene.add(this.group);
     this.velocity = new THREE.Vector3();
     this.vy = 0;
-    this.jumpOffset = 0;
+    this.onGround = true;
     this.heading = 0;
     this.extraColliders = [];   // NPCs etc.
     this.setAstronaut(astronaut);
@@ -28,18 +30,27 @@ export class Player {
 
   get position() { return this.group.position; }
 
+  /** Kept for older code: height above the ground while jumping. */
+  get jumpOffset() {
+    const g = this.world.groundAt(this.position.x, this.position.z, this.position.y);
+    return g == null ? 99 : Math.max(0, this.position.y - g);
+  }
+
   teleport(x, z, heading = this.heading) {
-    this.group.position.set(x, this.world.heightAt(x, z), z);
+    const ground = this.world.groundAt(x, z, 1e6);
+    this.group.position.set(x, ground ?? 0, z);
     this.velocity.set(0, 0, 0);
     this.vy = 0;
-    this.jumpOffset = 0;
+    this.onGround = true;
     this.heading = heading;
     this.group.rotation.y = heading;
   }
 
   jump(sound) {
-    if (this.jumpOffset <= 0.001) {
+    if (this.onGround) {
       this.vy = JUMP_SPEED;
+      this.onGround = false;
+      this.group.position.y += 0.02;
       sound?.jump();
     }
   }
@@ -54,7 +65,8 @@ export class Player {
     const fx = -Math.sin(cameraYaw), fz = -Math.cos(cameraYaw);
     const rx = Math.cos(cameraYaw), rz = -Math.sin(cameraYaw);
     const target = new THREE.Vector3(fx * move.z + rx * move.x, 0, fz * move.z + rz * move.x).multiplyScalar(WALK_SPEED);
-    const accel = target.lengthSq() > 0 ? 12 : 9;
+    const friction = this.world.zone?.friction ?? 1; // ice is slippery!
+    const accel = (target.lengthSq() > 0 ? 12 : 9) * friction;
     this.velocity.lerp(target, Math.min(1, dt * accel));
 
     const pos = this.group.position;
@@ -64,11 +76,22 @@ export class Player {
     pos.x = nx;
     pos.z = nz;
 
-    // Jump physics
-    this.vy -= GRAVITY * dt;
-    this.jumpOffset = Math.max(0, this.jumpOffset + this.vy * dt);
-    if (this.jumpOffset === 0) this.vy = 0;
-    pos.y = this.world.heightAt(nx, nz) + this.jumpOffset;
+    // Vertical physics (ground can be terrain or a platform, or nothing at all)
+    const ground = this.world.groundAt(nx, nz, pos.y);
+    if (this.onGround && ground != null && this.vy <= 0 && pos.y - ground < STEP_DOWN) {
+      pos.y = ground;
+      this.vy = 0;
+    } else {
+      this.vy -= GRAVITY * dt;
+      pos.y += this.vy * dt;
+      if (ground != null && pos.y <= ground) {
+        pos.y = ground;
+        this.vy = 0;
+        this.onGround = true;
+      } else {
+        this.onGround = false;
+      }
+    }
 
     // Face movement direction smoothly
     const speed = Math.hypot(this.velocity.x, this.velocity.z);
@@ -80,13 +103,15 @@ export class Player {
     }
     this.group.rotation.y = this.heading;
 
-    this.astronaut.update(dt, { speed: Math.min(1, speed / WALK_SPEED), airborne: this.jumpOffset > 0.15 });
+    const airborne = !this.onGround && (ground == null || pos.y - ground > 0.15);
+    this.astronaut.update(dt, { speed: Math.min(1, speed / WALK_SPEED), airborne });
   }
 
   resolveCollisions(x, z) {
-    const all = this.world.colliders.concat(this.extraColliders);
+    const all = this.world.activeColliders.concat(this.extraColliders);
     for (let pass = 0; pass < 2; pass++) {
       for (const c of all) {
+        if (!c.r) continue;
         const dx = x - c.x, dz = z - c.z;
         const min = c.r + PLAYER_RADIUS;
         const d2 = dx * dx + dz * dz;
@@ -97,7 +122,7 @@ export class Player {
         }
       }
     }
-    // Stay inside the play area
+    // Stay inside the play area on the Moon
     const r = this.world.playRadius;
     const d = Math.hypot(x, z);
     if (d > r) { x *= r / d; z *= r / d; }
